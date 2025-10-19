@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Camera Access Site</title>
+<title>Camera Snapshot Site</title>
 <style>
   body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
   #cameraScreen, #captureScreen { display: none; }
-  video { width: 400px; height: 300px; border: 1px solid black; margin-top: 20px; }
   input { padding: 8px; margin-top: 10px; width: 200px; }
   button { padding: 8px 15px; margin-left: 5px; cursor: pointer; }
-  img { margin-top: 20px; border: 1px solid black; }
+  img { margin-top: 20px; border: 1px solid black; width: 400px; height: 300px; object-fit: cover; }
 </style>
 </head>
 <body>
@@ -21,11 +20,9 @@
 </div>
 
 <div id="cameraScreen">
-  <video id="video" autoplay></video>
-  <div>
-    <input type="text" id="userInput" placeholder='Type "connect" to continue'>
-    <button id="submitInput">Submit</button>
-  </div>
+  <p>Type "connect" to continue:</p>
+  <input type="text" id="userInput" placeholder='Type "connect"'>
+  <button id="submitInput">Submit</button>
 </div>
 
 <div id="captureScreen">
@@ -34,6 +31,7 @@
 </div>
 
 <canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
+<video id="video" autoplay playsinline style="display:none;"></video>
 
 <script>
 const enableCameraBtn = document.getElementById("enableCamera");
@@ -46,10 +44,12 @@ const submitInput = document.getElementById("submitInput");
 const canvas = document.getElementById("canvas");
 const capturedImage = document.getElementById("capturedImage");
 
+let stream;
+
 enableCameraBtn.addEventListener("click", async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream; // keep video hidden
     cameraPrompt.style.display = "none";
     cameraScreen.style.display = "block";
   } catch (err) {
@@ -59,10 +59,13 @@ enableCameraBtn.addEventListener("click", async () => {
 
 submitInput.addEventListener("click", () => {
   if (userInput.value.trim().toLowerCase() === "connect") {
-    // Take a snapshot
-    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imgData = canvas.toDataURL("image/png");
-    capturedImage.src = imgData;
+    // Take a snapshot without showing live video
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    capturedImage.src = canvas.toDataURL("image/png");
+
+    // Stop the camera
+    stream.getTracks().forEach(track => track.stop());
 
     cameraScreen.style.display = "none";
     captureScreen.style.display = "block";
