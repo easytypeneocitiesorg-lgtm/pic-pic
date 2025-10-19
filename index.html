@@ -1,79 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Camera Snapshot Site</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Camera Snapshot & Send</title>
 <style>
-  body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
-  #cameraScreen, #captureScreen { display: none; }
-  input { padding: 8px; margin-top: 10px; width: 200px; }
-  button { padding: 8px 15px; margin-left: 5px; cursor: pointer; }
-  img { margin-top: 20px; border: 1px solid black; width: 400px; height: 300px; object-fit: cover; }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;display:flex;flex-direction:column;align-items:center;gap:18px;padding:32px;background:#f7f7fb;color:#111}
+  .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 6px 18px rgba(20,20,40,0.06);max-width:440px;width:100%;text-align:center}
+  button{padding:10px 14px;border-radius:8px;border:1px solid #ddd;background:#f5f5f8;cursor:pointer}
+  input[type="text"]{padding:10px;border-radius:8px;border:1px solid #ddd;width:180px}
+  img{max-width:100%;height:auto;border-radius:8px;border:1px solid #ddd}
+  .muted{color:#666;font-size:0.9rem}
+  #status{font-size:0.95rem}
 </style>
 </head>
 <body>
 
-<div id="cameraPrompt">
-  <h2>You must allow camera access to use this site</h2>
+<div class="card" id="promptCard">
+  <h2>Allow camera access</h2>
+  <p class="muted">The site will request camera permission. No picture is taken until you type <strong>connect</strong> and press Submit.</p>
   <button id="enableCamera">Enable Camera</button>
 </div>
 
-<div id="cameraScreen">
-  <p>Type "connect" to continue:</p>
-  <input type="text" id="userInput" placeholder='Type "connect"'>
-  <button id="submitInput">Submit</button>
+<div class="card" id="actionCard" style="display:none">
+  <p class="muted">Type <strong>connect</strong> then press Submit to take a picture (camera runs hidden).</p>
+  <div style="display:flex;justify-content:center;gap:8px">
+    <input id="userInput" type="text" placeholder='Type "connect"' autocomplete="off" />
+    <button id="submitInput">Submit</button>
+  </div>
 </div>
 
-<div id="captureScreen">
-  <h2>Here’s your picture:</h2>
-  <img id="capturedImage" alt="Your photo">
+<div class="card" id="resultCard" style="display:none">
+  <h3>Here’s your picture</h3>
+  <img id="capturedImage" alt="Captured snapshot" />
+  <div style="margin-top:12px;display:flex;gap:10px;justify-content:center">
+    <button id="sendBtn">Send to Discord</button>
+    <button id="retakeBtn">Retake</button>
+  </div>
+  <p id="status" class="muted"></p>
 </div>
 
-<canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
-<video id="video" autoplay playsinline style="display:none;"></video>
+<!-- hidden canvas & video -->
+<canvas id="canvas" width="640" height="480" style="display:none"></canvas>
+<video id="video" autoplay playsinline style="display:none"></video>
 
 <script>
-const enableCameraBtn = document.getElementById("enableCamera");
-const cameraPrompt = document.getElementById("cameraPrompt");
-const cameraScreen = document.getElementById("cameraScreen");
-const captureScreen = document.getElementById("captureScreen");
-const video = document.getElementById("video");
-const userInput = document.getElementById("userInput");
-const submitInput = document.getElementById("submitInput");
-const canvas = document.getElementById("canvas");
-const capturedImage = document.getElementById("capturedImage");
+/*
+ Single-file site:
+ - Allows camera permission
+ - Hides live video
+ - Takes snapshot after typing "connect"
+ - Shows snapshot + "Send to Discord" button
+ - Attempts direct POST to provided webhook (may fail due to CORS)
+ - Shows helpful message and error if blocked; includes an option to retake
+*/
 
-let stream;
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1429539232879476847/Y4lPXsI_ITQeCjsya8qe3WdxJkjwq4AeNaP9oN5Y4wdXEAyjiGR5dxwwex3R5zSE_iq4";
 
-enableCameraBtn.addEventListener("click", async () => {
+const enableCameraBtn = document.getElementById('enableCamera');
+const promptCard = document.getElementById('promptCard');
+const actionCard = document.getElementById('actionCard');
+const resultCard = document.getElementById('resultCard');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const userInput = document.getElementById('userInput');
+const submitInput = document.getElementById('submitInput');
+const capturedImage = document.getElementById('capturedImage');
+const sendBtn = document.getElementById('sendBtn');
+const retakeBtn = document.getElementById('retakeBtn');
+const status = document.getElementById('status');
+
+let stream = null;
+let lastBlob = null;
+
+enableCameraBtn.addEventListener('click', async () => {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream; // keep video hidden
-    cameraPrompt.style.display = "none";
-    cameraScreen.style.display = "block";
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+    video.srcObject = stream; // hidden video element, used only to capture
+    promptCard.style.display = 'none';
+    actionCard.style.display = 'block';
+    userInput.focus();
   } catch (err) {
-    alert("Camera access is required to use this site.");
+    alert('Camera access is required to use this site.');
+    console.error(err);
   }
 });
 
-submitInput.addEventListener("click", () => {
-  if (userInput.value.trim().toLowerCase() === "connect") {
-    // Take a snapshot without showing live video
-    const context = canvas.getContext("2d");
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    capturedImage.src = canvas.toDataURL("image/png");
-
-    // Stop the camera
-    stream.getTracks().forEach(track => track.stop());
-
-    cameraScreen.style.display = "none";
-    captureScreen.style.display = "block";
-  } else {
+submitInput.addEventListener('click', () => {
+  if ((userInput.value || '').trim().toLowerCase() !== 'connect') {
     alert('Type "connect" to continue.');
+    return;
+  }
+  takeSnapshot();
+});
+
+function takeSnapshot() {
+  const ctx = canvas.getContext('2d');
+  // set canvas to desired size based on video track settings (fallback to 640x480)
+  let w = canvas.width, h = canvas.height;
+  if (video.videoWidth && video.videoHeight) {
+    w = canvas.width = video.videoWidth;
+    h = canvas.height = video.videoHeight;
+  }
+  ctx.drawImage(video, 0, 0, w, h);
+  canvas.toBlob(blob => {
+    lastBlob = blob;
+    capturedImage.src = URL.createObjectURL(blob);
+    // stop camera tracks for privacy
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    actionCard.style.display = 'none';
+    resultCard.style.display = 'block';
+    status.textContent = '';
+  }, 'image/png');
+}
+
+sendBtn.addEventListener('click', async () => {
+  if (!lastBlob) return alert('No image to send.');
+  status.textContent = 'Sending...';
+  sendBtn.disabled = true;
+
+  // Prepare FormData (file upload)
+  const form = new FormData();
+  form.append('file', lastBlob, 'snapshot.png');
+  // Optionally add a content message
+  form.append('payload_json', JSON.stringify({ content: 'User-submitted snapshot' }));
+
+  try {
+    // Attempt direct POST to Discord webhook
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      body: form,
+      // no custom headers; let browser set boundary; Discord may block via CORS
+    });
+    if (res.ok) {
+      status.textContent = 'Sent to Discord successfully!';
+    } else {
+      // Discord returns a non-2xx status (possible if CORS blocked before fetch resolves)
+      const txt = await res.text().catch(()=>res.statusText);
+      status.textContent = `Upload failed (status ${res.status}). Server says: ${txt}`;
+      console.warn('Discord response not OK', res, txt);
+    }
+  } catch (err) {
+    // Typical place where browser CORS prevents direct POST
+    console.error(err);
+    status.innerHTML = `Direct upload blocked by browser (CORS). <br>Recommended: deploy a tiny server-side proxy (see instructions below).`;
+  } finally {
+    sendBtn.disabled = false;
   }
 });
+
+retakeBtn.addEventListener('click', () => {
+  // clear and allow retry
+  lastBlob = null;
+  capturedImage.src = '';
+  resultCard.style.display = 'none';
+  promptCard.style.display = 'block';
+  userInput.value = '';
+  status.textContent = '';
+});
+
 </script>
+
+<!--
+ OPTIONAL SERVER-SIDE FALLBACK (recommended if direct upload fails due to CORS):
+ If you see "Direct upload blocked by browser (CORS)." use a server-side endpoint to forward the image.
+ Example Vercel serverless function (create file /api/upload.js in the same project):
+
+ // api/upload.js (Node.js serverless for Vercel)
+ import fetch from 'node-fetch';
+ import formidable from 'formidable-serverless';
+
+ export const config = { api: { bodyParser: false } };
+
+ export default async function handler(req, res) {
+   if (req.method !== 'POST') return res.status(405).end();
+   const form = new formidable.IncomingForm();
+   form.parse(req, async (err, fields, files) => {
+     if (err) return res.status(500).end('form parse error');
+     const file = files.file;
+     const buffer = await fs.promises.readFile(file.path);
+     const formData = new FormData();
+     formData.append('file', buffer, 'snapshot.png');
+     formData.append('payload_json', JSON.stringify({ content: 'Forwarded snapshot' }));
+     const discordRes = await fetch('YOUR_DISCORD_WEBHOOK_URL', { method: 'POST', body: formData });
+     const text = await discordRes.text();
+     res.status(discordRes.status).send(text);
+   });
+ }
+
+ Then change WEBHOOK_URL in the client file to point to '/api/upload' (relative path), and the browser will POST to your own domain (no CORS).
+-->
 
 </body>
 </html>
