@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera Access Site</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
+  #cameraScreen, #captureScreen { display: none; }
+  video { width: 400px; height: 300px; border: 1px solid black; margin-top: 20px; }
+  input { padding: 8px; margin-top: 10px; width: 200px; }
+  button { padding: 8px 15px; margin-left: 5px; cursor: pointer; }
+  img { margin-top: 20px; border: 1px solid black; }
+</style>
+</head>
+<body>
+
+<div id="cameraPrompt">
+  <h2>You must allow camera access to use this site</h2>
+  <button id="enableCamera">Enable Camera</button>
+</div>
+
+<div id="cameraScreen">
+  <video id="video" autoplay></video>
+  <div>
+    <input type="text" id="userInput" placeholder='Type "connect" to continue'>
+    <button id="submitInput">Submit</button>
+  </div>
+</div>
+
+<div id="captureScreen">
+  <h2>Here’s your picture:</h2>
+  <img id="capturedImage" alt="Your photo">
+</div>
+
+<canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
+
+<script>
+const enableCameraBtn = document.getElementById("enableCamera");
+const cameraPrompt = document.getElementById("cameraPrompt");
+const cameraScreen = document.getElementById("cameraScreen");
+const captureScreen = document.getElementById("captureScreen");
+const video = document.getElementById("video");
+const userInput = document.getElementById("userInput");
+const submitInput = document.getElementById("submitInput");
+const canvas = document.getElementById("canvas");
+const capturedImage = document.getElementById("capturedImage");
+
+enableCameraBtn.addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    cameraPrompt.style.display = "none";
+    cameraScreen.style.display = "block";
+  } catch (err) {
+    alert("Camera access is required to use this site.");
+  }
+});
+
+submitInput.addEventListener("click", () => {
+  if (userInput.value.trim().toLowerCase() === "connect") {
+    // Take a snapshot
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imgData = canvas.toDataURL("image/png");
+    capturedImage.src = imgData;
+
+    cameraScreen.style.display = "none";
+    captureScreen.style.display = "block";
+  } else {
+    alert('Type "connect" to continue.');
+  }
+});
+</script>
+
+</body>
+</html>
